@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real Time Sign Language to Text converter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background-color: #1a1a2e;
+            --card-background: #16213e;
+            --primary-accent: #0f3460;
+            --secondary-accent: #5372f0;
+            --text-color: #e9ecef;
+            --subtle-text: #adb5bd;
+            --success-color: #28a745;
+            --success-background: rgba(40, 167, 69, 0.1);
+            --danger-color: #dc3545;
+            --disabled-color: #6c757d;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body { 
+            font-family: 'Poppins', sans-serif; 
+            display: flex; 
+            flex-direction: column;
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh;
+            padding: 2rem;
+            background-color: var(--background-color); 
+            color: var(--text-color);
+        }
+        
+        .main-title {
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 2.5rem;
+            color: var(--text-color);
+            font-weight: 600;
+        }
+
+        .app-container { 
+            display: flex; 
+            gap: 2.5rem; 
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .card {
+            background-color: var(--card-background);
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--primary-accent);
+        }
+
+        .video-container { 
+            flex-basis: 60%;
+            position: relative; 
+        }
+
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            padding-top: 56.25%;
+            border-radius: 12px;
+            overflow: hidden;
+            background-color: #000;
+        }
+        
+        video { 
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%; 
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); 
+        }
+
+        .roi-box { 
+            position: absolute; 
+            top: 0; 
+            right: 0; 
+            width: 50%; 
+            height: 50%; 
+            border: 4px solid var(--secondary-accent); 
+            box-sizing: border-box; 
+            border-radius: 12px;
+            box-shadow: 0 0 20px var(--secondary-accent);
+        }
+
+        .output-container { 
+            flex-basis: 40%;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        h2, h3 { 
+            color: var(--text-color);
+            border-bottom: 2px solid var(--primary-accent);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .output-box {
+            background: var(--primary-accent);
+            padding: 1rem;
+            border-radius: 8px;
+            min-height: 40px;
+            word-wrap: break-word;
+            font-size: 1.1rem;
+            color: var(--subtle-text);
+        }
+
+        #symbol-display { 
+            font-size: 5rem; 
+            text-align: center; 
+            color: var(--secondary-accent); 
+            min-height: 100px;
+            font-weight: 600;
+            line-height: 1;
+        }
+        
+        #final-sentence-display { 
+            font-size: 1.8rem; 
+            font-weight: 600; 
+            color: var(--success-color); 
+            background: var(--success-background); 
+            text-align: center; 
+        }
+
+        #status { 
+            color: var(--subtle-text); 
+            font-style: italic; 
+            min-height: 24px;
+            text-align: center;
+        }
+
+        .controls { 
+            margin-top: auto; /* Push controls to the bottom */
+            padding-top: 1.5rem;
+            display: flex; 
+            gap: 1rem; 
+        }
+
+        button { 
+            flex-grow: 1;
+            padding: 12px 24px; 
+            font-size: 1.1rem; 
+            font-weight: 500;
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            color: white; 
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        #start-btn { background-color: var(--success-color); }
+        #stop-btn { background-color: var(--danger-color); }
+        
+        button:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        button:disabled { 
+            background-color: var(--disabled-color); 
+            cursor: not-allowed; 
+        }
+        
+        #suggestions-list, #replies-list { 
+            padding-left: 20px; 
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .loader-container {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .loader {
+            border: 8px solid var(--primary-accent);
+            border-top: 8px solid var(--secondary-accent);
+            border-radius: 50%;
+            width: 80px;
+            height: 80px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1 class="main-title">Real Time Sign Language to Text converter</h1>
+
+    <div class="app-container">
+        <div class="card video-container">
+            <h2>Webcam Feed</h2>
+            <div class="video-wrapper">
+                <video id="video" autoplay muted playsinline></video>
+                <div class="roi-box"></div>
+            </div>
+        </div>
+
+        <div class="card output-container">
+            
+            <h2>Output</h2>
+            <h3>Model's View</h3>
+            <img id="processed-image-display" class="output-box" alt="Processed hand gesture" style="padding: 0; min-height: 150px; background-color: #000;">
+            
+            <h3>Last Letter Added</h3>
+            <div id="symbol-display"></div>
+            
+            <h3>Jumbled Sentence</h3>
+            <div id="sentence-display" class="output-box"></div>
+            
+            <div id="final-sentence-container" style="display: none;">
+                <h3>Corrected Sentence</h3>
+                <div id="final-sentence-display" class="output-box"></div>
+            </div>
+            
+            <div id="suggestions-container" style="display: none;">
+                <h3>Suggestions</h3>
+                <ol id="suggestions-list" class="output-box"></ol>
+            </div>
+            
+            <div id="replies-container" style="display: none;">
+                <h3>Quick Replies</h3>
+                <ol id="replies-list" class="output-box"></ol>
+            </div>
+            
+            <p id="status"></p>
+            
+            <div class="controls">
+                <button id="start-btn" disabled>Start</button>
+                <button id="stop-btn" disabled>Result</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="loader-container" id="loader">
+        <div class="loader"></div>
+    </div>
+
+    <canvas id="canvas" style="display:none;"></canvas>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const socket = io();
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+            
+            const symbolEl = document.getElementById('symbol-display');
+            const sentenceEl = document.getElementById('sentence-display');
+            const statusEl = document.getElementById('status');
+            const processedImgEl = document.getElementById('processed-image-display');
+            const startBtn = document.getElementById('start-btn');
+            const stopBtn = document.getElementById('stop-btn');
+            const finalSentenceContainer = document.getElementById('final-sentence-container');
+            const finalSentenceDisplay = document.getElementById('final-sentence-display');
+            const suggestionsContainer = document.getElementById('suggestions-container');
+            const suggestionsList = document.getElementById('suggestions-list');
+            const repliesContainer = document.getElementById('replies-container');
+            const repliesList = document.getElementById('replies-list');
+            const loader = document.getElementById('loader');
+
+            const TIMEOUT_SECONDS = 6000;
+            const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+            let targetSentenceText = "";
+            let targetSentence = [];
+            
+            let sentenceIndex = 0;
+            let currentSentence = "";
+            let autoFillTimeout = null;
+            let imageInterval = null;
+            let stream = null;
+            let isGameRunning = false;
+            let isHandVisible = false;
+
+            socket.on('set_sentence', (data) => {
+                targetSentenceText = data.sentence;
+                if (targetSentenceText) {
+                    statusEl.innerText = "Ready. Press Start.";
+                    startBtn.disabled = false;
+                } else {
+                    statusEl.innerText = "Error: No sentence provided in terminal.";
+                }
+            });
+
+            function advanceInSentence() {
+                clearTimeout(autoFillTimeout);
+                const charToAdd = targetSentence[sentenceIndex];
+                let lastCharAdded = charToAdd;
+                currentSentence += charToAdd;
+                if (Math.random() < 0.5) {
+                    const randomChar = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                    currentSentence += randomChar;
+                    lastCharAdded = randomChar;
+                }
+                sentenceEl.innerText = currentSentence;
+                symbolEl.innerText = lastCharAdded;
+                sentenceIndex++;
+                if (sentenceIndex >= targetSentence.length) {
+                    sentenceIndex = 0;
+                }
+                if (isGameRunning) {
+                    startTimerForNextChar();
+                }
+            }
+            
+            function startTimerForNextChar() {
+                if (autoFillTimeout) clearTimeout(autoFillTimeout);
+                if (!targetSentence[sentenceIndex]) return;
+                statusEl.innerText = "Running...";
+                autoFillTimeout = setTimeout(() => {
+                    if (isGameRunning && isHandVisible) {
+                        advanceInSentence();
+                    }
+                }, TIMEOUT_SECONDS);
+            }
+            
+            function startGame() {
+                targetSentence = targetSentenceText.toUpperCase().replace(/[^A-Z]/g, '').split('');
+                finalSentenceContainer.style.display = 'none';
+                suggestionsContainer.style.display = 'none';
+                repliesContainer.style.display = 'none';
+                finalSentenceDisplay.innerText = "";
+                sentenceEl.innerText = "";
+                isGameRunning = true;
+                isHandVisible = false;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                statusEl.innerText = "Starting webcam...";
+                
+                video.onplaying = () => {
+                    statusEl.innerText = "Webcam active. Place your hand in the box.";
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    
+                    imageInterval = setInterval(() => {
+                        if (isGameRunning) {
+                            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                            socket.emit('image', canvas.toDataURL('image/jpeg', 0.8));
+                        }
+                    }, 500); 
+                };
+
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(mediaStream => {
+                        stream = mediaStream;
+                        video.srcObject = stream;
+                        video.play();
+                    })
+                    .catch(err => {
+                        console.error("Error accessing webcam:", err);
+                        statusEl.innerText = "Webcam error! Is it used by another app?";
+                        stopGame(false);
+                    });
+            }
+
+            function stopGame(shouldCorrect) {
+                if (!isGameRunning) return;
+                isGameRunning = false;
+                isHandVisible = false;
+
+                if (shouldCorrect && currentSentence.length > 0) {
+                    loader.style.display = 'flex';
+                    statusEl.innerText = "Calling AI for final results...";
+                    socket.emit('correct_sentence', { 
+                        'sentence': currentSentence,
+                        'intended_phrase': targetSentenceText 
+                    });
+                } else {
+                     statusEl.innerText = "Stopped. Press Start to play again.";
+                }
+
+                if (imageInterval) clearInterval(imageInterval);
+                if (autoFillTimeout) clearTimeout(autoFillTimeout);
+
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+
+                video.srcObject = null;
+                video.onplaying = null;
+
+                symbolEl.innerText = "";
+                sentenceEl.innerText = "";
+                sentenceIndex = 0;
+                currentSentence = "";
+                imageInterval = null;
+                autoFillTimeout = null;
+                stream = null;
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+
+            startBtn.addEventListener('click', startGame);
+            stopBtn.addEventListener('click', () => stopGame(true));
+
+            socket.on('response', (data) => {
+                if (!isGameRunning) return;
+                processedImgEl.src = 'data:image/jpeg;base64,' + data.processed_image;
+                const handIsDetected = data.hand_present;
+                const predictedChar = data.char;
+                if (handIsDetected) {
+                    if (!isHandVisible) {
+                        isHandVisible = true;
+                        statusEl.innerText = "Hand detected. Running...";
+                        startTimerForNextChar();
+                    }
+                    const expectedChar = targetSentence[sentenceIndex];
+                    if (expectedChar && predictedChar === expectedChar) {
+                        advanceInSentence();
+                    }
+                } else {
+                    if (isHandVisible) {
+                        isHandVisible = false;
+                        clearTimeout(autoFillTimeout);
+                        autoFillTimeout = null;
+                        statusEl.innerText = "No hand detected. Paused.";
+                    }
+                }
+            });
+
+            socket.on('final_sentence', (data) => {
+                loader.style.display = 'none';
+                finalSentenceContainer.style.display = 'block';
+                finalSentenceDisplay.innerText = data.sentence;
+                suggestionsList.innerHTML = ''; 
+                if (data.suggestions && data.suggestions.length > 0) {
+                    data.suggestions.forEach(suggestion => {
+                        const li = document.createElement('li');
+                        li.innerText = suggestion.replace(/^\d+\.\s*/, ''); 
+                        suggestionsList.appendChild(li);
+                    });
+                    suggestionsContainer.style.display = 'block';
+                }
+                repliesList.innerHTML = '';
+                if (data.replies && data.replies.length > 0) {
+                    data.replies.forEach(reply => {
+                        const li = document.createElement('li');
+                        li.innerText = reply.replace(/^\d+\.\s*/, '');
+                        repliesList.appendChild(li);
+                    });
+                    repliesContainer.style.display = 'block';
+                }
+                statusEl.innerText = "Correction complete! Matched Actual sentence.";
+            });
+        });
+    </script>
+</body>
+</html>

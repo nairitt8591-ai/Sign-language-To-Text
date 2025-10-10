@@ -1,0 +1,10 @@
+flask
+flask-socketio
+torch
+torchvision
+Pillow
+opencv-python
+numpy
+google-generativeai
+gunicorn
+eventlet
