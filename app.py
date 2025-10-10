@@ -10,19 +10,25 @@ import numpy as np
 import base64
 import google.generativeai as genai
 
-# --- V V V PASTE YOUR KEY HERE V V V ---
+# --- API Key Configuration (Secure method recommended, but using hardcoded as requested) ---
+# NOTE: Using os.environ.get for the SECRET_KEY is a good practice, even if you keep the API_KEY hardcoded.
 API_KEY = 'AIzaSyB7aTZ9-eEZNBMUH2Xab2zbYWDQj2JBgCA' 
 genai.configure(api_key=API_KEY)
-# --- ^ ^ ^ PASTE YOUR KEY HERE ^ ^ ^ ---
 
-# --- NEW: Get input from the terminal when the script starts ---
-intended_phrase_from_terminal = input("Actual_sentence: ")
-print(f"Server will use the sentence: '{intended_phrase_from_terminal}'")
+# --- FIX: Define a default value for the phrase (remove the input() call) ---
+# Since you cannot get input from the terminal on Render,
+# we start with a default phrase. The client must provide the real phrase.
+# You can set this to whatever you want, or just leave it empty.
+# If your client (index.html/JS) provides the phrase, this variable is less critical.
+intended_phrase_from_terminal = "Hello world I am happy"
+print(f"Server will start with default sentence: '{intended_phrase_from_terminal}'")
 
 
 # --- Flask App and WebSocket Setup ---
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your_secret_key!' 
+# Use an Environment Variable for a real secret key on Render!
+# Render will automatically set a PORT environment variable.
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default_secret_key') 
 socketio = SocketIO(app)
 
 # --- 1. MODEL ARCHITECTURE (No changes) ---
@@ -39,10 +45,17 @@ MODEL_PATH = 'sign_language_model.pth'
 CLASS_NAMES = ['0', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 NUM_CLASSES = len(CLASS_NAMES); IMG_SIZE = (128, 128)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = SignLanguageCNN(NUM_CLASSES)
-model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
-model.to(device)
-model.eval()
+
+# --- Try/Except block for model loading (important for deployment stability) ---
+try:
+    model = SignLanguageCNN(NUM_CLASSES)
+    model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
+    model.to(device)
+    model.eval()
+except Exception as e:
+    print(f"ERROR: Could not load model from {MODEL_PATH}. Check file path/size. Error: {e}")
+    # You might want to exit or handle this gracefully. For now, continue...
+
 data_transforms = transforms.Compose([transforms.Grayscale(num_output_channels=1), transforms.Resize(IMG_SIZE), transforms.ToTensor()])
 gemini_model = genai.GenerativeModel('gemini-2.5-pro')
 
@@ -51,10 +64,11 @@ gemini_model = genai.GenerativeModel('gemini-2.5-pro')
 def index():
     return render_template('index.html')
 
-# --- NEW: Send the sentence to the client when they connect ---
+# --- Send the default sentence to the client when they connect ---
+# The client must be updated to let the user input the desired phrase.
 @socketio.on('connect')
 def handle_connect():
-    print(f"Client connected. Sending sentence: '{intended_phrase_from_terminal}'")
+    print(f"Client connected. Sending default sentence: '{intended_phrase_from_terminal}'")
     socketio.emit('set_sentence', {'sentence': intended_phrase_from_terminal})
 
 
@@ -98,7 +112,7 @@ def handle_image(data_url):
 def handle_correction(data):
     jumbled_sentence = data.get('sentence')
     intended_phrase = data.get('intended_phrase')
-    if not jumbled_sentence:
+    if not jumbled_sentence or not intended_phrase:
         return
         
     # --- THIS PROMPT IS THE ONLY THING THAT NEEDS TO CHANGE ---
@@ -140,4 +154,6 @@ REPLIES:
 # --- 4. Run the App ---
 if __name__ == '__main__':
     print("Starting Flask server...")
-    socketio.run(app, host='localhost', port=5000)
+    # Use the PORT environment variable provided by Render when deploying
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, host='0.0.0.0', port=port)
